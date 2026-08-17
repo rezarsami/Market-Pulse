@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Env
+.env
+.env.local
+
+# Logs
+backend/logs/
+*.log.jsonl
+
+# Eval outputs (keep the dir, ignore generated reports)
+backend/eval/results/*.json
+!backend/eval/results/.gitkeep
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp

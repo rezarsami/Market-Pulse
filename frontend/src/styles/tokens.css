@@ -1,0 +1,69 @@
+:root {
+  /* --- Color: terminal-console palette, one signal accent pair --- */
+  --bg: #0b0d10;
+  --bg-raised: #12151a;
+  --bg-inset: #06070a;
+  --border: #23272e;
+  --border-faint: #1a1d23;
+  --text: #e8e6e1;
+  --text-dim: #8b9099;
+  --text-faint: #565c66;
+  --accent-pos: #3ddc84;
+  --accent-neg: #e8555a;
+  --accent-neutral: #d9b45c;
+  --accent-mixed: #7c9ee8;
+  --focus: #d9b45c;
+
+  /* --- Type --- */
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --radius: 3px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent-mixed);
+}
+
+::selection {
+  background: var(--accent-neutral);
+  color: var(--bg);
+}
+
+/* Visible keyboard focus everywhere, per accessibility floor */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button {
+  font-family: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,39 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - EXA_API_KEY=${EXA_API_KEY:-}
+      - FORCE_FALLBACK_SEARCH=${FORCE_FALLBACK_SEARCH:-false}
+      - AGENT_MODEL=${AGENT_MODEL:-claude-sonnet-4-6}
+      - ROUTER_MODEL=${ROUTER_MODEL:-claude-haiku-4-5-20251001}
+      - GROUNDING_MODEL=${GROUNDING_MODEL:-claude-haiku-4-5-20251001}
+      - JUDGE_MODEL=${JUDGE_MODEL:-claude-sonnet-4-6}
+      - TOOL_STRATEGY=${TOOL_STRATEGY:-router}
+      - WEB_SEARCH_MAX_USES=${WEB_SEARCH_MAX_USES:-5}
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=${RATE_LIMIT_REQUESTS_PER_MINUTE:-10}
+      - RATE_LIMIT_REQUESTS_PER_DAY=${RATE_LIMIT_REQUESTS_PER_DAY:-200}
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./backend/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${FRONTEND_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend

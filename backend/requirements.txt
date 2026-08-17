@@ -1,0 +1,10 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.5
+anthropic==0.75.0
+yfinance==0.2.54
+pandas==2.2.3
+httpx==0.28.1
+python-dotenv==1.0.1
+pytest==8.3.4
+pytest-mock==3.14.0
