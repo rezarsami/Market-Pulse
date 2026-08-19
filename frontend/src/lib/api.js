@@ -54,6 +54,16 @@ export function fetchPriceHistory({ ticker, period }) {
   return request(`/price-history?${params.toString()}`);
 }
 
+export function fetchStats({ ticker }) {
+  const params = new URLSearchParams({ ticker });
+  return request(`/stats?${params.toString()}`);
+}
+
+export function fetchAnalytics({ ticker, period }) {
+  const params = new URLSearchParams({ ticker, period: period || "1Y" });
+  return request(`/analytics?${params.toString()}`);
+}
+
 export function fetchHealth() {
   return request("/health");
 }

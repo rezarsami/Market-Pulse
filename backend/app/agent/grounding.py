@@ -32,19 +32,35 @@ You will be given:
 1. A list of "evidence" items (news headlines, sources, urls, and rationales that \
    an upstream agent claims it found via web search)
 2. A "summary" paragraph that synthesizes those items
+3. Optionally, a list of "materiality" judgments: each names a specific headline the \
+   agent found and assigns it a relative weight (high/medium/routine) with a short \
+   reason.
 
-Your job: identify any claim in the summary that is NOT supported by the evidence \
+Your job has two parts:
+
+A) SUMMARY: identify any claim in the summary that is NOT supported by the evidence \
 items. A claim is unsupported if it states a specific fact (a number, an event, an \
 attribution, a date, a causal claim) that doesn't appear in any evidence item's \
 headline or rationale. General synthesis language ("this suggests", "overall") is \
 fine and doesn't need to be flagged.
 
+B) MATERIALITY: for each materiality judgment, flag it if EITHER (i) its "headline" \
+does not match any evidence item's headline (the agent referenced something it didn't \
+actually find), OR (ii) its "why" introduces a specific fact not present in that \
+item's headline or rationale. Do NOT flag the weight itself (high/medium/routine is a \
+subjective ranking, not a factual claim) -- only flag fabricated headlines or invented \
+supporting facts.
+
+Count every summary claim AND every materiality judgment you examine toward \
+checked_claims. When you flag a materiality problem, prefix the claim text with \
+"[materiality] " so it's distinguishable.
+
 Respond with ONLY a JSON object of this exact form, no prose, no markdown fences:
 {
   "is_fully_grounded": true|false,
-  "checked_claims": <integer, roughly how many distinct factual claims you checked>,
+  "checked_claims": <integer, roughly how many distinct factual claims + materiality judgments you checked>,
   "flagged_claims": [
-    {"claim": "<the unsupported claim, quoted or closely paraphrased from the summary>",
+    {"claim": "<the unsupported claim, quoted or closely paraphrased>",
      "reason": "<why it isn't supported by the evidence>"}
   ]
 }
@@ -77,6 +93,16 @@ def run_grounding_check(
         f"Evidence items:\n{json.dumps(evidence, indent=2)}\n\n"
         f"Summary to verify:\n{news_analysis.summary}"
     )
+
+    if news_analysis.materiality:
+        materiality_payload = [
+            {"headline": m.headline, "weight": m.weight, "why": m.why}
+            for m in news_analysis.materiality
+        ]
+        user_content += (
+            f"\n\nMateriality judgments to verify:\n"
+            f"{json.dumps(materiality_payload, indent=2)}"
+        )
 
     client = get_client()
     start = time.time()

@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { Pulse as PulseIcon } from "@phosphor-icons/react";
 import SearchBar from "./components/SearchBar.jsx";
 import PriceChart from "./components/PriceChart.jsx";
+import AnalyticsPanel from "./components/AnalyticsPanel.jsx";
 import AnalysisPanel from "./components/AnalysisPanel.jsx";
+import ProgressStages from "./components/ProgressStages.jsx";
 import { analyzeTicker } from "./lib/api.js";
 import "./App.css";
 
@@ -29,11 +32,32 @@ export default function App() {
   return (
     <div className="app">
       <header className="app__header">
-        <div className="app__brand">
-          <span className="app__brand-mark">◈</span> market pulse
+        <div className="app__brand-row">
+          <div className="app__brand">
+            <PulseIcon size={20} weight="bold" className="app__brand-mark" aria-hidden="true" />
+            <span className="app__brand-name">market pulse</span>
+          </div>
+          <div className="app__brand-meta">news synthesis · grounded · cited</div>
         </div>
-        <div className="app__tagline">live-search news synthesis + price history, with cited, validated, grounded output</div>
+        <div className="app__statusbar" role="status">
+          <span className="app__status-item">
+            <span className="app__status-dot" aria-hidden="true" /> live
+          </span>
+          <span className="app__status-sep">/</span>
+          <span className="app__status-item">anthropic messages api</span>
+          <span className="app__status-sep">/</span>
+          <span className="app__status-item">hand-rolled agent loop</span>
+          <span className="app__status-sep">/</span>
+          <span className="app__status-item">yfinance price data</span>
+        </div>
       </header>
+
+      <div className="app__intro">
+        <p className="app__intro-lead">
+          Enter a ticker to get a live-searched, cited read on the news that could move it —
+          each claim verified against its source before you see it.
+        </p>
+      </div>
 
       <main className="app__main">
         <SearchBar onSubmit={handleSubmit} loading={loading} />
@@ -46,23 +70,33 @@ export default function App() {
           </div>
         )}
 
-        {ticker && <PriceChart ticker={ticker} />}
-
-        {loading && (
-          <div className="app__loading">
-            running agent: searching, reading, judging relevance, and checking grounding…
+        {ticker && (
+          <div className="market-row">
+            <div className="market-row__chart">
+              <PriceChart ticker={ticker} />
+            </div>
+            <div className="market-row__analytics">
+              <AnalyticsPanel ticker={ticker} />
+            </div>
           </div>
         )}
+
+        {loading && <ProgressStages />}
 
         {response && !loading && <AnalysisPanel response={response} />}
 
         {!ticker && !loading && (
           <div className="app__empty-state">
-            <p>enter a ticker (e.g. AAPL, TSLA, SPY) to get a live-searched, cited summary of news that could move its price, plus an interactive chart.</p>
-            <p className="app__empty-state-sub">
-              every news item below is validated against a strict schema and checked by a separate
-              grounding pass before you see it. nothing is fabricated — if there's no data, the agent says so.
-            </p>
+            <span className="app__empty-label">Try</span>
+            {["AAPL", "TSLA", "NVDA", "SPY", "MSFT"].map((t) => (
+              <button
+                key={t}
+                className="app__example-chip"
+                onClick={() => handleSubmit({ ticker: t })}
+              >
+                {t}
+              </button>
+            ))}
           </div>
         )}
       </main>

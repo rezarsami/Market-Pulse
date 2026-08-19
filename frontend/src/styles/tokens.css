@@ -1,67 +1,104 @@
+/* ============================================================
+   MARKET PULSE — Data-Dense Dashboard
+   Design system sourced from ui-ux-pro-max skill:
+   style=data-dense-dashboard, colors=blue+amber, type=Fira Code/Fira Sans
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
 :root {
-  /* --- Color: terminal-console palette, one signal accent pair --- */
-  --bg: #0b0d10;
-  --bg-raised: #12151a;
-  --bg-inset: #06070a;
-  --border: #23272e;
-  --border-faint: #1a1d23;
-  --text: #e8e6e1;
-  --text-dim: #8b9099;
-  --text-faint: #565c66;
-  --accent-pos: #3ddc84;
-  --accent-neg: #e8555a;
-  --accent-neutral: #d9b45c;
-  --accent-mixed: #7c9ee8;
-  --focus: #d9b45c;
+  /* Colors — from skill (blue data + amber highlights) */
+  --color-primary: #1E40AF;
+  --color-primary-strong: #1E3A8A;
+  --color-secondary: #3B82F6;
+  --color-accent: #D97706;        /* amber CTA */
+  --color-accent-strong: #B45309;
+  --bg: #F8FAFC;
+  --bg-raised: #FFFFFF;
+  --bg-inset: #F1F5F9;
+  --bg-hover: #EEF3FB;
+  --border: #DBEAFE;
+  --border-faint: #E9EEF6;
+  --border-strong: #C7D9F5;
 
-  /* --- Type --- */
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --text: #1E3A8A;                /* foreground: deep blue */
+  --text-body: #1F2937;           /* neutral body text */
+  --text-dim: #475569;            /* muted foreground */
+  --text-faint: #7C8AA0;
 
-  --radius: 3px;
+  --brand: var(--color-primary);
+  --focus: #1E40AF;
+
+  /* Directional data signal */
+  --accent-pos: #059669;
+  --accent-neg: #DC2626;
+  --accent-neutral: #D97706;
+  --accent-mixed: #2563EB;
+  --chart-line: #0080FF;          /* skill trend-line blue */
+
+  --pos-tint: rgba(5, 150, 105, 0.10);
+  --neg-tint: rgba(220, 38, 38, 0.10);
+  --neutral-tint: rgba(217, 119, 6, 0.12);
+  --mixed-tint: rgba(37, 99, 235, 0.10);
+  --brand-soft: #EEF2FB;
+
+  /* Type — Fira pairing from skill */
+  --font-mono: "Fira Code", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: "Fira Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Data-dense type scale (skill: 12-14px base) */
+  --t-data-lg: 24px;
+  --t-display: 18px;
+  --t-body: 14px;
+  --t-data: 13px;
+  --t-label: 12px;
+  --t-micro: 11px;
+
+  /* Dense spacing (skill: grid-gap 8px, card-padding 12px) */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 28px; --s-7: 40px; --s-8: 56px;
+  --grid-gap: 8px;
+  --card-padding: 12px;
+
+  /* Structure — tighter radius for dashboard feel */
+  --radius: 8px;
+  --radius-sm: 5px;
+  --rule: 1px solid var(--border);
+  --rule-faint: 1px solid var(--border-faint);
+  --shadow-sm: 0 1px 2px rgba(30, 58, 138, 0.06), 0 1px 3px rgba(30, 58, 138, 0.08);
+  --shadow-md: 0 2px 8px rgba(30, 58, 138, 0.10), 0 4px 16px rgba(30, 58, 138, 0.08);
+
+  --section-gap: var(--s-6);
+  --content-max: 1080px;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
+html, body {
+  margin: 0; padding: 0;
   background: var(--bg);
-  color: var(--text);
+  color: var(--text-body);
   font-family: var(--font-sans);
+  font-size: var(--t-body);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-#root {
-  min-height: 100vh;
-}
+#root { min-height: 100vh; }
 
-a {
-  color: var(--accent-mixed);
-}
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-::selection {
-  background: var(--accent-neutral);
-  color: var(--bg);
-}
+::selection { background: var(--brand-soft); color: var(--color-primary-strong); }
 
-/* Visible keyboard focus everywhere, per accessibility floor */
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-button {
-  font-family: inherit;
-}
+button { font-family: inherit; cursor: pointer; }
+
+.tnum { font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;

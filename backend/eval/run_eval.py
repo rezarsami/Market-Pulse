@@ -22,13 +22,19 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import app.env
 from app.agent.grounding import run_grounding_check
 from app.agent.loop import run_agent
 from app.observability.tracing import RequestTracer
+from eval.ablation import (
+    GroundingAblationRow,
+    aggregate_grounding_ablation,
+    score_grounding_ablation,
+)
 from eval.golden_dataset import GOLDEN_DATASET, GoldenCase
 from eval.llm_judge import judge_case
 from eval.metrics import CaseScore, aggregate, score_case
+from eval.report_md import write_markdown
 
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 
@@ -53,6 +59,9 @@ def run_single_case(case: GoldenCase, strategy: str) -> dict:
     case_score = score_case(case, result.news_analysis)
     tool_names = [tc["tool_name"] for tc in tracer.tool_calls]
     judge_score = judge_case(case, result.news_analysis, grounding, tool_names)
+    ablation_row = score_grounding_ablation(
+        case.case_id, case.ticker, result.news_analysis, grounding
+    )
 
     print(
         f"  [{case.case_id}/{strategy}] items={len(result.news_analysis.items)} "
@@ -75,6 +84,7 @@ def run_single_case(case: GoldenCase, strategy: str) -> dict:
         "latency_ms": latency_ms,
         "case_score": asdict(case_score),
         "judge_score": asdict(judge_score),
+        "grounding_ablation_row": asdict(ablation_row),
         "search_mode": result.search_mode,
     }
 
@@ -121,7 +131,7 @@ def run_harness(strategies: list[str], cases: list[GoldenCase]) -> dict:
             else 0
         )
 
-        report["strategies"][strategy] = {
+        strategy_block = {
             "metrics": asdict(metrics),
             "llm_judge": {
                 "avg_answer_quality": round(avg_answer_quality, 2),
@@ -131,6 +141,18 @@ def run_harness(strategies: list[str], cases: list[GoldenCase]) -> dict:
             "n_errors": len(runs) - len(valid_runs),
             "runs": runs,
         }
+
+        ablation_rows = [
+            GroundingAblationRow(**r["grounding_ablation_row"])
+            for r in valid_runs
+            if "grounding_ablation_row" in r
+        ]
+        if ablation_rows:
+            strategy_block["grounding_ablation"] = asdict(
+                aggregate_grounding_ablation(ablation_rows, strategy)
+            )
+
+        report["strategies"][strategy] = strategy_block
 
     return report
 
@@ -164,6 +186,22 @@ def print_comparison_table(report: dict) -> None:
     for row in judge_rows:
         vals = [str(report["strategies"][s]["llm_judge"][row]) for s in strategies]
         print(f"{row:<{col_width}}" + "".join(f"{v:<20}" for v in vals))
+
+    if any("grounding_ablation" in report["strategies"][s] for s in strategies):
+        print("-" * 78)
+        print("GROUNDING ABLATION (detection layer)")
+        ab_rows = [
+            "total_checked_claims",
+            "total_flagged_claims",
+            "aggregate_detection_rate",
+            "cases_fully_grounded",
+        ]
+        for row in ab_rows:
+            vals = [
+                str(report["strategies"][s].get("grounding_ablation", {}).get(row, "-"))
+                for s in strategies
+            ]
+            print(f"{row:<{col_width}}" + "".join(f"{v:<20}" for v in vals))
     print("=" * 78)
 
 
@@ -179,6 +217,11 @@ def main():
         "--cases",
         default=None,
         help="Comma-separated case_ids to run (default: full golden dataset)",
+    )
+    parser.add_argument(
+        "--ablation",
+        action="store_true",
+        help="Write the human-readable RESULTS.md (grounding-ablation report) alongside JSON",
     )
     args = parser.parse_args()
 
@@ -207,6 +250,11 @@ def main():
     latest_path = os.path.join(RESULTS_DIR, "latest.json")
     with open(latest_path, "w") as f:
         json.dump(report, f, indent=2, default=str)
+
+    if args.ablation:
+        md_path = os.path.join(os.path.dirname(RESULTS_DIR), "RESULTS.md")
+        write_markdown(report, md_path)
+        print(f"Markdown results written to {md_path}")
 
 
 if __name__ == "__main__":

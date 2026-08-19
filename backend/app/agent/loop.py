@@ -109,12 +109,39 @@ and ONLY a JSON object, no prose, no markdown fences -- matching exactly this sc
     }}
   ],
   "summary": "<2-4 sentence synthesized narrative across all items>",
+  "market_effects": [
+    {{
+      "entity": "<a related company/sector/supplier/competitor plausibly affected>",
+      "direction": "<positive|negative|neutral|mixed>",
+      "reasoning": "<why they're affected, as a PLAUSIBLE chain from the actual event -- use hedged language like 'could'/'may', do NOT assert as fact>"
+    }}
+  ],
+  "materiality": [
+    {{
+      "headline": "<must match one of the news item headlines above>",
+      "weight": "<high|medium|routine>",
+      "why": "<why this item carries this weight RELATIVE to the others you found>"
+    }}
+  ],
   "no_data_found": <true if you found no material news, else false>
 }}
 
+For "market_effects": think about second-order consequences -- who ELSE is plausibly \
+affected by this news (suppliers, competitors, customers, the broader sector), and in \
+which direction. Frame each as reasoning with hedged language ("could", "may", "if this \
+holds"), NOT as asserted fact. Only include effects that follow logically from news you \
+actually found. If the news doesn't support any second-order reasoning, use an empty list.
+
+For "materiality": give a RELATIVE read across the items you found -- which are \
+genuinely consequential ("high"), which are moderately relevant ("medium"), and which are \
+routine/rehashed ("routine"). This is a relative ranking among what you found, NOT a claim \
+about what the market has already priced in. Every headline here must match one of your \
+news items exactly.
+
 Only include items you actually found via search with real urls. If you found \
-nothing material, return an empty items list, no_data_found: true, and a summary \
-saying plainly that no material recent news was found for {ticker}."""
+nothing material, return an empty items list, empty market_effects, empty materiality, \
+no_data_found: true, and a summary saying plainly that no material recent news was found \
+for {ticker}."""
 
 
 @dataclass

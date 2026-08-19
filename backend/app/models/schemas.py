@@ -47,6 +47,39 @@ class NewsItem(BaseModel):
         return v.strip()
 
 
+class MarketEffect(BaseModel):
+    """A single second-order / ripple effect of the news, framed as reasoning."""
+
+    entity: str = Field(
+        ..., min_length=1, max_length=120,
+        description="Who is plausibly affected: a company, sector, supplier, competitor, etc.",
+    )
+    direction: Literal["positive", "negative", "neutral", "mixed"]
+    reasoning: str = Field(
+        ..., min_length=10, max_length=400,
+        description="Why this entity is affected, framed as a plausible chain, not asserted fact",
+    )
+
+
+class MaterialityRead(BaseModel):
+    """Relative materiality judgment across the retrieved items.
+
+    This is NOT an absolute 'priced-in vs new' claim (that would need a market
+    baseline we don't have). It's a relative ranking: of what was found, what
+    genuinely moves the needle vs. what's routine.
+    """
+
+    headline: str = Field(
+        ..., min_length=1, max_length=300,
+        description="The item this judgment refers to (match one of the news items)",
+    )
+    weight: Literal["high", "medium", "routine"]
+    why: str = Field(
+        ..., min_length=10, max_length=400,
+        description="Why it carries this weight relative to the other items found",
+    )
+
+
 class NewsAnalysis(BaseModel):
     """The full structured output the agent must produce for a ticker."""
 
@@ -54,6 +87,14 @@ class NewsAnalysis(BaseModel):
     items: list[NewsItem] = Field(default_factory=list)
     summary: str = Field(
         ..., description="Synthesized narrative summary across all news items"
+    )
+    market_effects: list[MarketEffect] = Field(
+        default_factory=list,
+        description="Second-order / ripple effects on related entities, as reasoning",
+    )
+    materiality: list[MaterialityRead] = Field(
+        default_factory=list,
+        description="Relative materiality read across the retrieved items",
     )
     no_data_found: bool = Field(
         default=False,
@@ -118,6 +159,51 @@ class PriceHistoryResponse(BaseModel):
     interval: str
     bars: list[PriceBar]
     currency: Optional[str] = None
+    no_data_found: bool = False
+
+
+class PeriodReturnOut(BaseModel):
+    window: str
+    pct_change: Optional[float] = None
+    start_close: Optional[float] = None
+    end_close: Optional[float] = None
+
+
+class TickerStatsResponse(BaseModel):
+    ticker: str
+    currency: Optional[str] = None
+    last_price: Optional[float] = None
+    market_cap: Optional[float] = None
+    day_volume: Optional[int] = None
+    fifty_two_week_high: Optional[float] = None
+    fifty_two_week_low: Optional[float] = None
+    returns: list[PeriodReturnOut] = Field(default_factory=list)
+    no_data_found: bool = False
+
+
+class ReturnBucketOut(BaseModel):
+    label: str
+    count: int
+
+
+class AnalyticsResponse(BaseModel):
+    ticker: str
+    period: str
+    n_days: int = 0
+    currency: Optional[str] = None
+    cumulative_return_pct: Optional[float] = None
+    annualized_volatility_pct: Optional[float] = None
+    max_drawdown_pct: Optional[float] = None
+    best_day_pct: Optional[float] = None
+    worst_day_pct: Optional[float] = None
+    positive_day_share_pct: Optional[float] = None
+    sma_20: Optional[float] = None
+    sma_50: Optional[float] = None
+    last_close: Optional[float] = None
+    price_vs_sma50_pct: Optional[float] = None
+    beta_vs_spy: Optional[float] = None
+    correlation_vs_spy: Optional[float] = None
+    return_distribution: list[ReturnBucketOut] = Field(default_factory=list)
     no_data_found: bool = False
 
 

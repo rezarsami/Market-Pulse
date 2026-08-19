@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import app.env  
 import logging
 
 from fastapi import FastAPI

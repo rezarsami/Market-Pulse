@@ -1,5 +1,6 @@
 import GroundingBanner from "./GroundingBanner.jsx";
 import NewsItemCard from "./NewsItemCard.jsx";
+import InsightSections from "./InsightSections.jsx";
 import ObservabilityStrip from "./ObservabilityStrip.jsx";
 
 export default function AnalysisPanel({ response }) {
@@ -26,6 +27,10 @@ export default function AnalysisPanel({ response }) {
             <NewsItemCard key={i} item={item} flaggedClaimTexts={flaggedClaimTexts} />
           ))}
         </div>
+      )}
+
+      {!news_analysis.no_data_found && (
+        <InsightSections analysis={news_analysis} flaggedClaimTexts={flaggedClaimTexts} />
       )}
 
       <ObservabilityStrip response={response} />
