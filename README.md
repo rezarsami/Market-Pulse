@@ -3,13 +3,15 @@
 A tool-using agent that takes a stock/ETF ticker, performs **live web search** (not a
 pre-fetched feed) to find news that could plausibly move its price, produces a
 **schema-validated, cited** summary, runs a **second-pass grounding check** against its own
-evidence, and renders an interactive price chart. Built as a portfolio piece demonstrating
-production AI-engineering practice — agent architecture, structured output reliability,
-evaluation rigor, and observability — over UI polish.
+evidence, and renders an interactive price chart alongside computed quantitative analytics.
+Built as a portfolio piece demonstrating production AI-engineering practice — agent
+architecture, structured output reliability, evaluation rigor, and observability.
 
 Backend: FastAPI (Python). Frontend: React + Vite, served as a static SPA (Nginx in Docker).
 No LangChain or other agent framework — the tool loop is hand-rolled directly against the
 Anthropic Messages API because three tools and two strategies don't need one.
+
+<img src="docs/images/ss1_for_market_pulse.png" width="850" alt="Market Pulse dashboard — live price chart and computed quantitative analysis side by side">
 
 ```
 ┌─────────────┐      POST /analyze       ┌────────────────────────────────────┐
@@ -25,6 +27,18 @@ Anthropic Messages API because three tools and two strategies don't need one.
                      (or Tavily/Exa fallback)
 ```
 
+## Screenshots
+
+**Cited, grounded news synthesis** — each item scored for relevance, direction, and
+materiality, with sources and dates.
+
+<img src="docs/images/ss2_market_pulse.png" width="850" alt="News synthesis: items scored for relevance, direction, and importance with sources">
+
+**Second-order market effects** — reasoning about affected suppliers, competitors, and
+sectors, explicitly labeled as inference (not grounding-checked).
+
+<img src="docs/images/ss3_market_pulse.png" width="850" alt="How this affects the market — second-order effects on related companies">
+
 ---
 
 ## Table of contents
@@ -34,6 +48,7 @@ Anthropic Messages API because three tools and two strategies don't need one.
 - [What each decision demonstrates](#what-each-decision-demonstrates)
 - [Agentic vs. router: the comparison and the numbers](#agentic-vs-router-the-comparison-and-the-numbers)
 - [Structured output & the grounding pass](#structured-output--the-grounding-pass)
+- [Quantitative analytics](#quantitative-analytics)
 - [Guardrails](#guardrails)
 - [Observability](#observability)
 - [Running the eval harness](#running-the-eval-harness)
@@ -105,9 +120,8 @@ default.
 
 ### Why native web search, with a documented fallback
 
-The brief asked me to check current docs rather than assume from memory — the web search
-tool surface has changed over time. As of this build, the current Claude Platform docs
-specify:
+The web search tool surface has changed over time, so I checked current docs rather than
+assume from memory. As of this build, the current Claude Platform docs specify:
 
 - Tool type `web_search_20250305` (basic; `web_search_20260209`+ adds dynamic filtering,
   `web_search_20260318`+ adds response-inclusion control — not needed here), attached as
@@ -127,8 +141,6 @@ what it's already found — we never fetch articles ourselves and hand them over
 
 ## What each decision demonstrates
 
-*(Written for an interviewer skimming the repo, per the brief.)*
-
 - **Native web search over a hand-rolled news API integration** — shows I default to a
   platform's first-party capability when it exists and verify its current shape against
   docs rather than trusting training data, but still design the fallback path so the
@@ -144,8 +156,7 @@ what it's already found — we never fetch articles ourselves and hand them over
 - **A real second-pass grounding check** — shows awareness that an LLM synthesizing its
   own search results can still drift from what it actually found, and that "trust the
   first pass" is not a production-safe default. It's implemented as an actual second API
-  call that reads the evidence and the summary and flags claims it can't support — not a
-  comment saying "you'd want to do this."
+  call that reads the evidence and the summary and flags claims it can't support.
 - **AST-based calculator, not `eval()`** — the obvious-in-retrospect point that any tool
   taking a string of "arithmetic" from an LLM is one prompt injection away from being an
   RCE if implemented naively.
@@ -158,8 +169,8 @@ what it's already found — we never fetch articles ourselves and hand them over
 
 ## Agentic vs. router: the comparison and the numbers
 
-Requirement #2 asked for two tool-selection strategies, an eval harness that scores both
-on the same test set, and a documented default backed by the numbers.
+The app implements two tool-selection strategies, an eval harness that scores both on the
+same test set, and a documented default backed by the numbers.
 
 **Agentic** (`TOOL_STRATEGY=agentic`): all three tools are attached up front; the model
 decides autonomously, turn by turn, what to call based on the system prompt and the
@@ -173,62 +184,72 @@ actually needed, then the agentic loop runs with only that narrower tool set att
 the search tool dropped entirely for pure-price/calc queries). One extra small/cheap model
 call, but a tighter, more predictable loop.
 
-### How to reproduce these numbers
-
-```bash
-cd backend
-python -m eval.run_eval --strategy both
-```
-
-This runs the full golden dataset (`eval/golden_dataset.py`) through both strategies,
-scores precision/recall/hallucination-rate against hand-labeled ground truth
-(`eval/metrics.py`), runs the LLM-as-judge pass (`eval/llm_judge.py`), prints a comparison
-table, and writes the full JSON report to `eval/results/latest.json`.
-
 ### The numbers
 
-**I was not able to execute this harness against the live Anthropic API in the environment
-this repo was assembled in (no outbound network access to `api.anthropic.com`), so the
-table below is a placeholder schema, not fabricated results.** Every other test and code
-path in this repo that *could* be executed offline (the calculator, sanitizer, rate
-limiter, schema definitions, and the price-history "never fabricate" logic against a
-mocked `yfinance`) was actually run — see [Running tests](#running-tests) for what's
-genuinely verified vs. what requires your own API key to exercise for the first time.
+Results from a run of the full golden dataset through both strategies
+(`python -m eval.run_eval --strategy both --ablation`). Regenerate anytime; the
+human-readable table is written to `backend/eval/RESULTS.md` and the full JSON to
+`backend/eval/results/`.
 
-Run `python -m eval.run_eval --strategy both` with your own `ANTHROPIC_API_KEY` and paste
-the output here — the harness's `print_comparison_table` produces exactly this shape:
+| Metric | agentic | router |
+| --- | --- | --- |
+| Precision | 1.00 | 1.00 |
+| Recall | 1.00 | 1.00 |
+| Direction accuracy | 1.00 | 1.00 |
+| Hallucination rate (adversarial) ↓ | 0.00 | 0.00 |
+| Schema-validation failure rate ↓ | 0.00 | 0.00 |
+| Grounding pass rate | 0.75 | 0.50 |
+| Avg latency (ms) ↓ | 54,569 | 49,092 |
+| Avg cost / query (USD) ↓ | 0.313 | 0.232 |
 
-```
-================================================================================
-STRATEGY COMPARISON
-================================================================================
-metric                            agentic             router
-precision                         <run to fill>       <run to fill>
-recall                            <run to fill>       <run to fill>
-direction_accuracy                <run to fill>       <run to fill>
-hallucination_rate                <run to fill>       <run to fill>
-schema_validation_failure_rate    <run to fill>       <run to fill>
-avg_grounding_pass_rate           <run to fill>       <run to fill>
-avg_latency_ms                    <run to fill>       <run to fill>
-avg_cost_usd                      <run to fill>       <run to fill>
+LLM-as-judge (1–5, higher is better):
 
-avg_answer_quality                <run to fill>       <run to fill>
-avg_tool_appropriateness          <run to fill>       <run to fill>
-avg_grounding_check_functioning   <run to fill>       <run to fill>
-================================================================================
-```
+| Metric | agentic | router |
+| --- | --- | --- |
+| Answer quality | 3.50 | 3.50 |
+| Tool appropriateness | 2.00 | 2.25 |
+| Grounding-check functioning | 2.00 | 2.75 |
 
-**Default chosen ahead of that run: `router`.** The reasoning, independent of the exact
-numbers: the router strategy makes `hallucination_rate` and
-`schema_validation_failure_rate` structurally less likely to regress, because it removes
-tools the model has no legitimate reason to call for a given query (e.g. it never even
-sees `get_price_history` for a pure-news question), which removes a class of "called a
-tool, got a weird result, tried to narrate around it" failure modes. The extra router call
-is small/cheap (`claude-haiku-4-5-20251001`, ~150 tokens) relative to the savings from a
-narrower main loop. **If your run of the harness shows agentic performing comparably or
-better on precision/recall at lower total cost, that's a legitimate reason to flip the
-default** — change `TOOL_STRATEGY` in `.env` and note the updated numbers here. The
-harness exists specifically so this isn't a permanent, unrevisited decision.
+**Headline finding:** on this dataset **router matched agentic on every structured
+metric** (precision, recall, direction, zero hallucinations, zero schema failures) while
+running **~26% cheaper** ($0.232 vs. $0.313/query) **and ~10% faster** (49.1s vs. 54.6s).
+That validates `router` as the default: the extra Haiku-class classification call more
+than pays for itself by attaching a narrower tool set to the main loop.
+
+**Honest caveats, stated rather than hidden:**
+
+- **Small N.** Four cases means the perfect 1.00s are encouraging but not yet robust —
+  one case swings a rate by 25%. Expanding `golden_dataset.py` to ~15–25 labeled events
+  is the intended next step and would make these numbers carry more weight.
+- **The LLM-judge scores are low and deserve scrutiny, not spin.** The judge's
+  `grounding_check_functioning` score sits oddly next to the grounding ablation below,
+  which shows the grounding pass demonstrably catching unsupported claims. That tension
+  most likely reflects the judge being handed a terse view of the grounding result rather
+  than the grounding layer underperforming; it's flagged here as an open item rather than
+  smoothed over.
+
+### Grounding ablation
+
+The grounding pass is a **detection** layer, not a generation one: the agent emits the same
+summary whether or not the pass runs, so it would be dishonest to claim grounding lowers
+the model's hallucination rate. What it changes is *visibility* — without it, every
+unsupported claim reaches the user as fact, and with it those claims are flagged as
+unverified. The detection rate is the share of the model's factual claims that a
+no-grounding pipeline would have shipped unverified.
+
+| Metric | agentic | router |
+| --- | --- | --- |
+| Factual claims checked | 20 | 20 |
+| Claims flagged unsupported | 2 | 3 |
+| Detection rate (flagged / checked) | 0.10 | 0.15 |
+| Cases fully grounded | 3 | 2 |
+
+On this dataset the verification pass caught **10–15% of factual claims** as not traceable
+to the agent's own surfaced evidence — claims that, without the layer, would have reached
+the user presented as fact. The check also verifies the per-item materiality judgments
+(that each references a real retrieved headline and introduces no unsupported facts);
+market-effect reasoning is deliberately *not* grounding-checked, since it's inference, and
+is labeled as such in the UI.
 
 ### Golden dataset
 
@@ -283,7 +304,8 @@ class NewsItem(BaseModel):
 
 `url` is validated to start with `http(s)://`; `headline`/`source`/`rationale` reject
 empty/whitespace-only strings. The full response wraps a list of these plus a synthesized
-`summary` and a `no_data_found` flag.
+`summary`, per-item `materiality` judgments, second-order `market_effects`, and a
+`no_data_found` flag.
 
 ### Validate → retry once → degrade honestly
 
@@ -300,12 +322,26 @@ noise.
 
 After the structured `NewsAnalysis` is produced, a separate, cheaper model call
 (`GROUNDING_MODEL`, default Haiku-class) is given the evidence (headline/source/rationale
-for each item) and the synthesized `summary`, and asked to flag any claim in the summary
-that isn't traceable to that evidence. This is a real second API call parsed into a
-`GroundingReport` — not a comment describing the technique. Flagged claims are surfaced
-directly in the UI (a yellow banner + a marker on the related news card), not silently
-absorbed. If the verifier call itself fails, the pass **fails safe**
+for each item), the synthesized `summary`, and the per-item materiality judgments, and is
+asked to flag any claim that isn't traceable to that evidence. This is a real second API
+call parsed into a `GroundingReport` — not a comment describing the technique. Flagged
+claims are surfaced directly in the UI (a banner + a marker on the related news card), not
+silently absorbed. If the verifier call itself fails, the pass **fails safe**
 (`is_fully_grounded=False`) rather than defaulting to "trust it."
+
+---
+
+## Quantitative analytics
+
+Beyond the news pipeline, the app computes descriptive statistics on real price history —
+deterministic math in pandas / numpy, not model output. Given a ticker and a window
+(1M / 1Y / 5Y), `backend/app/tools/analytics.py` computes daily returns from closes and
+derives: cumulative return, annualized volatility (`std(daily returns) × √252`), max
+drawdown (largest peak-to-trough decline), beta and correlation vs. SPY (aligned over the
+same dates), share of positive days, best/worst single day, and price vs. its 50-day
+moving average. Every formula is unit-tested against hand-computed values, and any metric
+with insufficient data returns `null` rather than a fabricated number. This is descriptive
+statistical analysis, not predictive modeling — and it's labeled that way in the UI.
 
 ---
 
@@ -322,8 +358,7 @@ absorbed. If the verifier call itself fails, the pass **fails safe**
   `Attribute`, `Subscript`, `Lambda`, comprehensions, `Import`, f-strings, walrus,
   `getattr`/`eval`/`exec` calls — is rejected before any evaluation happens. **`eval()` and
   `exec()` are never called anywhere in this codebase**, on any input source. 34/34 hand-
-  traced test cases pass, including every code-injection pattern in the test suite (see
-  [Running tests](#running-tests) for what was actually executed).
+  traced test cases pass, including every code-injection pattern in the test suite.
 - **Rate limiting** (`app/guardrails/rate_limiter.py`) — in-memory sliding-window limiter,
   per session-id-or-IP, with both a per-minute burst cap and a per-day cap
   (`RATE_LIMIT_REQUESTS_PER_MINUTE` / `_PER_DAY`). Deliberately simple in-process state —
@@ -372,16 +407,18 @@ Example line (abridged):
 
 ```bash
 cd backend
-python -m eval.run_eval                          # both strategies, full golden dataset
+python -m eval.run_eval --ablation                # both strategies, full dataset, writes RESULTS.md
 python -m eval.run_eval --strategy router         # one strategy only
 python -m eval.run_eval --cases svb_collapse,nonexistent_ticker   # subset of cases
 ```
 
-Requires `ANTHROPIC_API_KEY` (this makes real API calls, including real web searches —
-expect on the order of $0.05–$0.20 total for a full both-strategies run across the 4-case
-dataset, logged precisely via the same cost-tracking path used in production). Output:
-a printed comparison table plus `eval/results/eval_report_<timestamp>.json` and
-`eval/results/latest.json`.
+Requires `ANTHROPIC_API_KEY` (this makes real API calls, including real web searches). In
+practice a full both-strategies run across the 4-case dataset costs roughly **$1–$1.50**
+and takes a few minutes (each case runs a multi-turn agent loop plus grounding and judge
+calls; ~$0.17 and ~45s per case observed), logged precisely via the same cost-tracking
+path used in production. Output: a printed comparison table,
+`eval/results/eval_report_<timestamp>.json`, `eval/results/latest.json`, and — with
+`--ablation` — a committed human-readable `eval/RESULTS.md`.
 
 ---
 
@@ -393,48 +430,25 @@ pip install -r requirements.txt
 pytest
 ```
 
-**Transparency note on verification in this repo:** the sandbox this repo was assembled in
-has no outbound network access, so `pip install` could not fetch `pydantic`, `fastapi`, or
-`anthropic`, and the full `pytest` suite could not be executed end-to-end here. What I did
-verify, for real, before calling this done:
-
-- Every `.py` file passes `python -m py_compile` (no syntax errors).
-- Every internal `from app...` / `from eval...` import resolves to a file that actually
-  exists at that path (checked by grep against the file tree).
-- `app/guardrails/safe_calculator.py` — **all 34 test cases from
-  `tests/test_safe_calculator.py` were actually executed** (stdlib-only, no missing deps)
-  and pass, including every code-injection attempt (`__import__`, `os.system`,
-  `__class__`/`__subclasses__` chains, `eval`/`exec` calls, lambdas, comprehensions,
-  walrus, f-strings, keyword-arg smuggling).
-- `app/guardrails/sanitize.py` and `app/guardrails/rate_limiter.py` — **all test cases
-  actually executed** and pass.
-- `app/tools/price_history.py` — the DataFrame-handling logic was **actually executed**
-  against a stubbed `yfinance.Ticker` (using the real, installed `pandas`), covering the
-  empty-result, exception, unsupported-period, and valid-data paths — all pass, confirming
-  the "never fabricate data" behavior.
-- `app/models/schemas.py`, `app/agent/loop.py`'s retry logic, and `app/agent/grounding.py`
-  were reviewed line-by-line against their corresponding tests (`test_schemas.py`,
-  `test_structured_output_retry.py`, `test_grounding.py`) to confirm function signatures,
-  mock patch targets (`@patch("app.agent.loop.create_message_with_retry")` etc. — these
-  work because the functions are imported by name into each module's namespace, not
-  accessed via a module-qualified path), and control flow match, but were **not executed**
-  in this environment since they require `pydantic`/`anthropic`.
-
-Run `pytest -v` yourself with the dependencies installed — everything above should pass,
-and this note should be deleted or updated with the actual run output once you've done so.
+The suite covers the safe calculator (34 cases including every code-injection pattern —
+`__import__`, `os.system`, `__class__`/`__subclasses__` chains, `eval`/`exec` calls,
+lambdas, comprehensions, walrus, f-strings, keyword-arg smuggling), the input sanitizer,
+the rate limiter, the price-history "never fabricate" logic against a stubbed `yfinance`,
+the schema definitions, the structured-output retry path, and the grounding pass. Run
+`pytest -v` for the full breakdown.
 
 ---
 
 ## Deployment
 
-### Render (free tier)
+### Render
 
 **Backend** (Web Service):
 1. New Web Service → connect this repo → root directory `backend`.
 2. Build command: `pip install -r requirements.txt`
 3. Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 4. Add env var `ANTHROPIC_API_KEY` (and any optional ones from `.env.example`).
-5. Free tier spins down on idle — first request after idle will be slow (cold start).
+5. The Starter tier stays always-on; the free tier spins down on idle (slow cold start).
 
 **Frontend** (Static Site):
 1. New Static Site → root directory `frontend`.
@@ -443,8 +457,10 @@ and this note should be deleted or updated with the actual run output once you'v
 4. Add env var `VITE_API_BASE_URL` = your backend's Render URL (e.g.
    `https://market-pulse-api.onrender.com`) — Render bakes build-time env vars into static
    sites automatically.
+5. Lock the backend's CORS `allow_origins` to the frontend's domain, and set a spend limit
+   in the Anthropic console before sharing the link publicly.
 
-### Fly.io (free tier)
+### Fly.io
 
 ```bash
 # Backend
@@ -470,28 +486,21 @@ FRONTEND_API_BASE_URL=http://localhost:8000 docker compose up --build
 
 ## Decisions & Assumptions
 
-Per the brief: where something was ambiguous, I made a reasonable default and kept moving
-rather than stalling. Documented here:
-
-- **Frontend: React + Vite over Streamlit.** The brief allowed either but asked me to
-  commit fully to one. Streamlit is faster to stand up but is fundamentally a data-app
-  runtime, not something you deploy as a standalone, embeddable, front-end-owned web app —
-  and this needs to be a genuinely deployable webapp (separate static frontend + API
-  backend, so either piece can be redeployed/scaled independently, and the frontend can
-  live on a CDN/static host). React gives full control over the chart/card/observability UI
-  and matches how a real product would actually ship. Plotly is still used for the chart
-  per the requirement (`react-plotly.js`), with its native range-slider component.
-- **Router as the pre-run default**, pending the person running the harness confirming or
-  overriding it with their own numbers — see the
+- **Frontend: React + Vite over Streamlit.** Streamlit is faster to stand up but is
+  fundamentally a data-app runtime, not something you deploy as a standalone, embeddable,
+  front-end-owned web app — and this needs to be a genuinely deployable webapp (separate
+  static frontend + API backend, so either piece can be redeployed/scaled independently,
+  and the frontend can live on a CDN/static host). React gives full control over the
+  chart/card/analytics/observability UI and matches how a real product would actually ship.
+  Plotly (`react-plotly.js`) renders the interactive price chart.
+- **Router as the default**, backed by the harness numbers above — see the
   [comparison section](#agentic-vs-router-the-comparison-and-the-numbers) for the full
   reasoning and how to flip it.
-- **Golden dataset size (4 cases).** The brief asked for "a handful of tickers... at least
-  one adversarial case." Four cases (one unambiguous historical event, one open-ended
-  always-has-news case, two adversarial) is enough to exercise every code path the harness
-  needs to score (precision, recall, direction accuracy, hallucination rate) without
-  needing dozens of hand-labeled historical events, which would mostly test "did search
-  happen to surface this specific article today" rather than agent architecture quality.
-  The harness (`--cases` flag) makes it trivial to extend if you want a bigger set.
+- **Golden dataset size (4 cases).** Four cases (one unambiguous historical event, one
+  open-ended always-has-news case, two adversarial) is enough to exercise every code path
+  the harness needs to score, without needing dozens of hand-labeled historical events,
+  which would mostly test "did search happen to surface this specific article today"
+  rather than agent architecture quality. The `--cases` flag makes it trivial to extend.
   **SIVB was deliberately chosen as the primary historical-event case** because its outcome
   (FDIC receivership, delisting) is unambiguous and stable in a way that doesn't require
   the live web search to surface a *specific* URL, only *the event*.
@@ -500,26 +509,13 @@ rather than stalling. Documented here:
   research, overridable via env vars, and the code computes real costs from real token/
   search counts — only the per-unit price constants would need updating if pricing shifts.
 - **Rate limiting is in-process, not Redis-backed.** Correct for a single-instance demo
-  deployment (which is what a free-tier Render/Fly deployment is); would need to move to a
-  shared store for a horizontally-scaled deployment. Documented as an explicit non-goal in
-  the module docstring rather than silently glossed over.
-- **`web_search_20250305` (basic) rather than a dynamic-filtering variant.** The docs
-  describe newer versions (`web_search_20260209`+) adding dynamic filtering via code
-  execution, which reduces token usage on search-heavy requests but adds a dependency on
-  the code-execution tool being provisioned. For a single-ticker news lookup with
-  `max_uses` capped at 5, the token savings don't justify the added moving part — kept to
-  the basic, stable version.
+  deployment; would need a shared store for a horizontally-scaled deployment. Documented as
+  an explicit non-goal in the module docstring rather than silently glossed over.
 - **`published_at` is a free-text string, not a parsed datetime.** News sources report
   dates in wildly inconsistent formats ("2 hours ago", "March 10, 2023",
   "2026-08-15T14:00Z"). Forcing a strict datetime schema would either reject a lot of
-  legitimately-found news or require a separate date-normalization pass that wasn't asked
-  for. The schema captures what was reported, as reported.
-- **`react-plotly.js` is wired via its `/factory` export + `plotly.js-dist-min`**
-  (`frontend/src/lib/plotly.js`), not its bare default import. The bare
-  `import Plot from "react-plotly.js"` pulls in the full `plotly.js` bundle as an implicit
-  peer dependency (multiple MB); the factory pattern with the explicit `-dist-min` bundle
-  keeps the production build smaller for the same candlestick + range-slider
-  functionality.
+  legitimately-found news or require a separate date-normalization pass. The schema
+  captures what was reported, as reported.
 
 ---
 
@@ -531,15 +527,15 @@ rather than stalling. Documented here:
   instructions (never fabricate, always cite real sources) are the deeper defense.
 - Rate limiting resets on process restart (in-memory) and doesn't share state across
   multiple backend instances.
-- The eval harness's precision/recall against `svb_collapse` and
-  `apple_iphone_launch_general` depends on live web search actually surfacing relevant
-  results at run time, which can vary run to run — this is inherent to evaluating a
-  live-search agent (as opposed to one reading a frozen corpus) and is why the harness
-  scores against *keyword/event matching* rather than exact-article matching.
+- The eval harness's precision/recall against the live-news cases depends on web search
+  actually surfacing relevant results at run time, which can vary run to run — inherent to
+  evaluating a live-search agent, and why the harness scores against keyword/event matching
+  rather than exact-article matching.
+- The golden dataset is small (4 cases), so the headline metrics are directional rather
+  than statistically robust — expanding it is the clear next step.
 - `yfinance` is an unofficial, free data source that scrapes Yahoo Finance's public
-  endpoints; it can occasionally rate-limit or change shape. It was chosen per the brief's
-  explicit suggestion ("a good free, keyless source") — a production system would likely
-  pair it with a paid, SLA-backed market data provider as a fallback.
+  endpoints; it can occasionally rate-limit or change shape. A production system would
+  likely pair it with a paid, SLA-backed market data provider as a fallback.
 
 ---
 
@@ -550,17 +546,19 @@ market-pulse/
 ├── backend/
 │   ├── app/
 │   │   ├── agent/            # loop.py, router.py, executor.py, grounding.py, client.py
-│   │   ├── tools/             # price_history.py, fallback_search.py, definitions.py
-│   │   ├── guardrails/        # sanitize.py, safe_calculator.py, rate_limiter.py
-│   │   ├── observability/     # tracing.py
-│   │   ├── models/            # schemas.py (Pydantic)
-│   │   ├── routes/            # analyze.py, price.py, health.py
+│   │   ├── tools/            # price_history.py, analytics.py, fallback_search.py, definitions.py
+│   │   ├── guardrails/       # sanitize.py, safe_calculator.py, rate_limiter.py
+│   │   ├── observability/    # tracing.py
+│   │   ├── models/           # schemas.py (Pydantic)
+│   │   ├── routes/           # analyze.py, price.py, health.py
 │   │   ├── config.py
 │   │   └── main.py
 │   ├── eval/
 │   │   ├── golden_dataset.py
 │   │   ├── metrics.py
 │   │   ├── llm_judge.py
+│   │   ├── ablation.py
+│   │   ├── report_md.py
 │   │   ├── run_eval.py
 │   │   └── results/
 │   ├── tests/
@@ -569,8 +567,8 @@ market-pulse/
 │   └── Dockerfile
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # SearchBar, PriceChart, AnalysisPanel, NewsItemCard, GroundingBanner, ObservabilityStrip
-│   │   ├── lib/                # api.js, plotly.js (factory wrapper)
+│   │   ├── components/       # SearchBar, PriceChart, AnalyticsPanel, AnalysisPanel, NewsItemCard, InsightSections, GroundingBanner, ProgressStages, ObservabilityStrip
+│   │   ├── lib/              # api.js, plotly.js (factory wrapper)
 │   │   ├── styles/tokens.css
 │   │   ├── App.jsx / App.css
 │   │   └── main.jsx
@@ -578,6 +576,8 @@ market-pulse/
 │   ├── vite.config.js
 │   ├── nginx.conf
 │   └── Dockerfile
+├── docs/
+│   └── images/              # README screenshots
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
